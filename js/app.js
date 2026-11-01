@@ -328,7 +328,9 @@ function openAccountEditDialog(account,departments=[]){
     if(!newPassword&&confirmPassword){error.textContent="กรุณากรอกรหัสผ่านใหม่ก่อนยืนยัน";return;}
     button.disabled=true;button.classList.add("is-loading");button.querySelector(".account-save-label").textContent="กำลังบันทึก...";
     try{
-      await API.call("adminUpdateUser",{userId:account.userId,displayName,newPassword,departmentId});
+      const updatePayload={userId:account.userId,displayName,newPassword};
+      if(account.memberId) updatePayload.departmentId=departmentId;
+      await API.call("adminUpdateUser",updatePayload);
       close();toast("บันทึกการแก้ไขบัญชีเรียบร้อย");loadPage("userManagement");
     }catch(err){error.textContent=err.message||"ไม่สามารถบันทึกข้อมูลได้ กรุณาลองอีกครั้ง";button.disabled=false;button.classList.remove("is-loading");button.querySelector(".account-save-label").textContent="บันทึกการเปลี่ยนแปลง";}
   });
