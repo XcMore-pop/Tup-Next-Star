@@ -187,3 +187,54 @@ button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{ou
 @keyframes accountModalIn{from{opacity:0;transform:translateY(12px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
 @media(max-width:600px){.account-modal-backdrop{align-items:flex-end;padding:10px}.account-modal{width:100%;max-height:94dvh;border-radius:19px 19px 14px 14px}.account-modal-head{padding:20px 18px 16px}.account-modal-form{padding:18px}.account-modal-head h2{font-size:18px}.account-modal-actions{display:grid;grid-template-columns:.8fr 1.2fr}.account-save-btn{min-width:0;width:100%}.account-cancel-btn{width:100%}.user-search-wrap{max-width:none;width:100%}.user-count{width:100%}}
 @media(prefers-reduced-motion:reduce){.account-modal-backdrop,.account-modal{animation:none}}
+
+
+/* Department leadership administration */
+.dept-leader-info{display:flex;gap:13px;align-items:flex-start;margin-bottom:18px;background:#f2f6fc;border-color:#dce6f3;color:#203858}
+.dept-leader-info>i{font-size:20px;color:#3567a5;margin-top:2px}.dept-leader-info p{margin:5px 0 0;color:#60718a;font-size:13px;line-height:1.6}
+.dept-leader-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.dept-leader-card{display:flex;flex-direction:column;gap:13px;min-width:0}
+.dept-leader-card-head{display:flex;align-items:center;gap:11px;margin-bottom:2px}
+.dept-leader-card-head h3{margin:0}.dept-leader-card-head small{color:#718096}
+.dept-icon{width:42px;height:42px;border-radius:12px;background:#eaf1fb;color:#234c80;display:grid;place-items:center;font-size:18px}
+.dept-leader-card label{display:flex;flex-direction:column;gap:7px;font-size:13px;font-weight:600}
+.dept-leader-card select[multiple]{min-height:112px;padding:8px}
+.dept-leader-card select[multiple] option{padding:7px;border-radius:5px}
+.dept-leader-hint{margin:0;color:#718096;font-size:12px}
+.required-mark{color:#d33}
+@media(max-width:800px){.dept-leader-grid{grid-template-columns:1fr}}
+
+
+/* Bulk attendance check-in */
+.attendance-batch-panel h3 i{color:var(--blue);margin-right:7px}
+.attendance-event-fields{margin-bottom:18px}
+.attendance-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:14px 0;flex-wrap:wrap}
+.attendance-toolbar>.field{max-width:360px;min-width:220px}
+.attendance-selection-actions{display:flex;gap:8px;flex-wrap:wrap}
+.attendance-selection-actions .btn{background:#eef2f7;color:var(--navy);border:1px solid var(--line)}
+.attendance-quick-status{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:12px 0;padding:12px;background:#f7f9fc;border-radius:12px;font-size:13px}
+.attendance-status-btn{border:1px solid transparent;border-radius:8px;padding:8px 12px;font-weight:600;font-size:12px;min-height:38px}
+.attendance-status-btn.present{background:#e8f6ef;color:#167448}
+.attendance-status-btn.late{background:#fff4df;color:#98610a}
+.attendance-status-btn.leave{background:#edf2f8;color:#52657d}
+.attendance-status-btn.absent{background:#fff0f0;color:#b42318}
+.attendance-count-line{display:flex;justify-content:space-between;align-items:center;font-size:13px;margin:12px 0;color:var(--muted)}
+.attendance-count-line strong{color:var(--navy)}
+.attendance-batch-table-wrap{border:1px solid var(--line);border-radius:10px}
+.attendance-batch-table{min-width:620px}
+.attendance-batch-table .att-check-col{width:48px}
+.attendance-batch-table input[type=checkbox],#toggleVisibleAttendance{width:19px;height:19px;accent-color:var(--navy2);cursor:pointer}
+.attendance-status-select{min-width:110px;max-width:150px;padding:8px 10px}
+.attendance-submit-row{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:16px;flex-wrap:wrap}
+.attendance-submit-row .btn{min-height:44px}
+.inline-spinner{display:inline-block;width:15px;height:15px;border:2px solid #ffffff66;border-top-color:#fff;border-radius:50%;animation:attendanceSpin .7s linear infinite;vertical-align:middle}
+@keyframes attendanceSpin{to{transform:rotate(360deg)}}
+@media(max-width:650px){.attendance-toolbar{align-items:stretch}.attendance-toolbar>.field{max-width:none;width:100%}.attendance-selection-actions{width:100%}.attendance-selection-actions .btn{flex:1}.attendance-quick-status{align-items:stretch}.attendance-quick-status>span{width:100%}.attendance-status-btn{flex:1 1 calc(50% - 8px)}.attendance-submit-row{align-items:stretch}.attendance-submit-row .btn{width:100%}}
+
+/* Workspace modules */
+.announcement-item{padding:18px 0;border-bottom:1px solid var(--border,#e5e7eb)}
+.announcement-item:last-child{border-bottom:0}
+.announcement-item>div:first-child{display:flex;flex-direction:column;gap:4px}
+.announcement-item p{white-space:pre-wrap;line-height:1.7;margin:12px 0}
+.announcement-item .toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+#taskAssignees{min-height:120px}
