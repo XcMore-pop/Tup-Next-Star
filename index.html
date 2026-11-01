@@ -21,7 +21,8 @@
         <input id="username" autocomplete="username" required placeholder="Username">
         <label>รหัสผ่าน</label>
         <input id="password" type="password" autocomplete="current-password" required placeholder="Password">
-        <button class="btn primary full" type="submit">เข้าสู่ระบบ <i class="fa-solid fa-arrow-right"></i></button>
+        <button class="btn primary full login-submit" id="loginSubmit" type="submit"><span class="login-submit-label">เข้าสู่ระบบ</span><i class="fa-solid fa-arrow-right login-submit-icon"></i><span class="button-spinner" aria-hidden="true"></span></button>
+        <p id="loginStatus" class="login-status" role="status" aria-live="polite"></p>
       </form>
       <p id="loginError" class="error"></p>
       <small class="muted">ระบบสำหรับสมาชิกและคณะกรรมการพรรค</small>
@@ -29,7 +30,8 @@
   </main>
 
   <div id="appView" class="app hidden">
-    <aside class="sidebar">
+    <div id="sidebarBackdrop" class="sidebar-backdrop" aria-hidden="true"></div>
+    <aside class="sidebar" id="appSidebar" aria-label="เมนูหลัก">
       <div class="side-brand"><span class="brand-mark small"><i class="fa-solid fa-shield-halved"></i></span><div><b>PARTY</b><small>MANAGEMENT</small></div></div>
       <nav id="mainNav">
         <div class="nav-caption admin-only">เมนูผู้ดูแลระบบ</div>
@@ -50,7 +52,13 @@
       <div class="side-bottom"><div class="user-mini"><div class="avatar" id="avatar">A</div><div><b id="userName">ผู้ใช้งาน</b><small id="userRole">MEMBER</small></div></div><button id="logoutBtn" class="logout"><i class="fa-solid fa-right-from-bracket"></i> ออกจากระบบ</button></div>
     </aside>
     <section class="main-area">
-      <header class="topbar"><div><span class="muted">PARTY MANAGEMENT /</span> <b id="pageTitle">ภาพรวม</b></div><span class="top-date" id="today"></span></header>
+      <header class="topbar">
+        <div class="topbar-left">
+          <button id="sidebarToggle" class="sidebar-toggle" type="button" aria-label="เปิดเมนู" aria-controls="appSidebar" aria-expanded="false"><i class="fa-solid fa-bars"></i></button>
+          <div><span class="muted">PARTY MANAGEMENT /</span> <b id="pageTitle">ภาพรวม</b></div>
+        </div>
+        <span class="top-date" id="today"></span>
+      </header>
       <div id="pageContent" class="content"></div>
     </section>
   </div>
