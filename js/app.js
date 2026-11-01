@@ -2,6 +2,39 @@ const $ = s => document.querySelector(s);
 const user = () => { try{return JSON.parse(sessionStorage.getItem("party_user")||"null")}catch(e){return null} };
 const titles = {dashboard:"ภาพรวม",members:"ระบบสมาชิก",attendance:"ระบบเช็กชื่อ",behavior:"คะแนนความประพฤติ",memberPortal:"ภาพรวมของฉัน",myAttendance:"ประวัติการเช็กชื่อ",myBehavior:"คะแนนความประพฤติ",myAppeals:"คำอุทธรณ์ของฉัน",appeals:"ตรวจคำอุทธรณ์",account:"บัญชีของฉัน",userManagement:"จัดการบัญชีผู้ใช้",departmentLeaders:"แต่งตั้งหัวหน้าฝ่าย",tasks:"ระบบมอบหมายงาน",announcements:"ประกาศข่าวสาร",calendar:"ปฏิทินกิจกรรม",reports:"รายงานผลการปฏิบัติงาน",audit:"ประวัติการใช้งาน"};
 function toast(msg){const el=$("#toast");el.textContent=msg;el.style.display="block";setTimeout(()=>el.style.display="none",3000)}
+
+// Reusable, accessible modal form. Replaces native browser prompt() dialogs.
+function modalForm({title,subtitle="กรอกข้อมูลให้ครบถ้วน",icon="fa-pen-to-square",fields=[],submitText="บันทึกข้อมูล",intro="",onSubmit}){
+  return new Promise(resolve=>{
+    const backdrop=document.createElement("div");backdrop.className="app-modal-backdrop";
+    const fieldHtml=fields.map((f,i)=>{
+      const id="appModalField"+i, required=f.required?"required":"", hint=f.hint?`<small class="app-modal-hint">${escapeHtml(f.hint)}</small>`:"";
+      let control="";
+      if(f.type==="textarea") control=`<textarea id="${id}" name="${escapeHtml(f.name)}" class="app-modal-control" rows="${f.rows||4}" placeholder="${escapeHtml(f.placeholder||"")}" ${required} ${f.minLength?`minlength="${f.minLength}"`:""}>${escapeHtml(f.value||"")}</textarea>`;
+      else if(f.type==="select") control=`<select id="${id}" name="${escapeHtml(f.name)}" class="app-modal-control" ${required}>${(f.options||[]).map(o=>`<option value="${escapeHtml(o.value)}" ${String(o.value)===String(f.value??"")?"selected":""}>${escapeHtml(o.label)}</option>`).join("")}</select>`;
+      else control=`<input id="${id}" name="${escapeHtml(f.name)}" class="app-modal-control" type="${f.type||"text"}" value="${escapeHtml(f.value||"")}" placeholder="${escapeHtml(f.placeholder||"")}" ${required} ${f.minLength?`minlength="${f.minLength}"`:""} ${f.maxLength?`maxlength="${f.maxLength}"`:""} ${f.autocomplete?`autocomplete="${escapeHtml(f.autocomplete)}"`:""}>`;
+      return `<label class="app-modal-field" for="${id}"><span>${escapeHtml(f.label)}${f.required?'<b class="app-modal-required"> *</b>':""}</span>${control}${hint}</label>`;
+    }).join("");
+    backdrop.innerHTML=`<section class="app-modal" role="dialog" aria-modal="true" aria-labelledby="appModalTitle"><header class="app-modal-head"><div class="app-modal-heading"><span class="app-modal-icon"><i class="fa-solid ${icon}"></i></span><div><h2 id="appModalTitle">${escapeHtml(title)}</h2><p>${escapeHtml(subtitle)}</p></div></div><button type="button" class="app-modal-close" aria-label="ปิด"><i class="fa-solid fa-xmark"></i></button></header>${intro?`<div class="app-modal-intro">${intro}</div>`:""}<form class="app-modal-form">${fieldHtml}<p class="app-modal-error" role="alert" aria-live="polite"></p><footer class="app-modal-actions"><button type="button" class="app-modal-cancel">ยกเลิก</button><button type="submit" class="btn primary app-modal-submit"><i class="fa-solid fa-check"></i><span>${escapeHtml(submitText)}</span></button></footer></form></section>`;
+    document.body.appendChild(backdrop);
+    const form=backdrop.querySelector("form"), error=backdrop.querySelector(".app-modal-error"), submit=backdrop.querySelector(".app-modal-submit");
+    let finished=false;
+    const close=value=>{if(finished)return;finished=true;document.removeEventListener("keydown",onKey);backdrop.remove();resolve(value);};
+    const onKey=e=>{if(e.key==="Escape")close(null);};
+    document.addEventListener("keydown",onKey);
+    backdrop.querySelector(".app-modal-close").onclick=()=>close(null);
+    backdrop.querySelector(".app-modal-cancel").onclick=()=>close(null);
+    backdrop.addEventListener("mousedown",e=>{if(e.target===backdrop)close(null)});
+    form.onsubmit=async e=>{
+      e.preventDefault();if(!form.reportValidity())return;
+      const values=Object.fromEntries(new FormData(form).entries());
+      submit.disabled=true;submit.innerHTML='<span class="app-modal-spinner"></span><span>กำลังบันทึก...</span>';error.textContent="";
+      try{const result=onSubmit?await onSubmit(values):values;close(result===undefined?values:result);}
+      catch(err){error.textContent=err?.message||"เกิดข้อผิดพลาด กรุณาลองอีกครั้ง";submit.disabled=false;submit.innerHTML=`<i class="fa-solid fa-check"></i><span>${escapeHtml(submitText)}</span>`;}
+    };
+    const first=backdrop.querySelector("input,textarea,select");if(first)requestAnimationFrame(()=>first.focus());
+  });
+}
 function escapeHtml(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 function showApp(){
   $("#loginView").classList.add("hidden");$("#appView").classList.remove("hidden");
@@ -61,12 +94,13 @@ async function renderMembers(el){
   if(user().role==="ADMIN") $("#addMember").onclick=()=>memberDialog(depts);
   if(user().role==="ADMIN") $("#createAccount").onclick=async()=>{try{const password=$("#accountPassword").value;if(password.length<5)throw new Error("รหัสผ่านต้องมีอย่างน้อย 5 ตัวอักษร");const r=await API.call("createMemberAccount",{memberId:$("#accountMember").value,username:$("#accountUsername").value,password});toast("สร้างบัญชี "+r.username+" เรียบร้อย");$("#accountPassword").value="";}catch(e){toast(e.message)}};
 }
-function memberDialog(depts){
-  const first=prompt("ชื่อจริงสมาชิก");if(!first)return;
-  const last=prompt("นามสกุลสมาชิก");if(!last)return;
-  const studentCode=prompt("รหัสนักเรียน (ถ้ามี)")||"";
-  const departmentId=prompt("รหัสฝ่าย: "+depts.map(d=>d.departmentId+"="+d.name).join(", "),depts[0]?.departmentId||"")||"";
-  API.call("saveMember",{firstName:first,lastName:last,studentCode,departmentId}).then(()=>{toast("เพิ่มสมาชิกเรียบร้อย");loadPage("members")}).catch(e=>toast(e.message));
+async function memberDialog(depts){
+  await modalForm({title:"เพิ่มสมาชิกใหม่",subtitle:"กรอกข้อมูลพื้นฐานและเลือกฝ่ายที่สังกัด",icon:"fa-user-plus",submitText:"เพิ่มสมาชิก",fields:[
+    {name:"firstName",label:"ชื่อจริง",placeholder:"ระบุชื่อจริง",required:true,maxLength:80},
+    {name:"lastName",label:"นามสกุล",placeholder:"ระบุนามสกุล",required:true,maxLength:80},
+    {name:"studentCode",label:"รหัสนักเรียน",placeholder:"ระบุรหัสนักเรียน (ไม่บังคับ)",maxLength:40},
+    {name:"departmentId",label:"ฝ่ายที่สังกัด",type:"select",required:true,options:depts.map(d=>({value:d.departmentId,label:d.name})),value:depts[0]?.departmentId||""}
+  ],onSubmit:async v=>{await API.call("saveMember",v);toast("เพิ่มสมาชิกเรียบร้อย");loadPage("members");}});
 }
 async function renderAttendance(el){
   const [members,records]=await Promise.all([API.call("listMembers"),API.call("listAttendance")]);
@@ -168,7 +202,7 @@ async function renderMemberPortal(el,page="memberPortal"){
   el.innerHTML=`<div class="page-heading"><div><h2>${heading[0]}</h2><p>${heading[1]}</p></div><button class="btn" id="refreshPortal">รีเฟรชข้อมูล</button></div>${body}`;
   $("#refreshPortal").onclick=()=>loadPage(page);
   document.querySelectorAll("[data-go]").forEach(b=>b.onclick=()=>loadPage(b.dataset.go));
-  document.querySelectorAll("[data-appeal]").forEach(b=>b.onclick=async()=>{const reason=prompt("ชี้แจงเหตุผลที่ต้องการอุทธรณ์ (อย่างน้อย 10 ตัวอักษร)");if(!reason)return;const evidenceUrl=prompt("ลิงก์หลักฐาน (ถ้ามี)")||"";try{await API.call("submitAppeal",{behaviorLogId:b.dataset.appeal,reason,evidenceUrl});toast("ส่งคำอุทธรณ์แล้ว");loadPage("myAppeals")}catch(e){toast(e.message)}});
+  document.querySelectorAll("[data-appeal]").forEach(b=>b.onclick=async()=>{await modalForm({title:"ยื่นคำอุทธรณ์คะแนน",subtitle:"ชี้แจงเหตุผลและแนบหลักฐานประกอบ (ถ้ามี)",icon:"fa-scale-balanced",submitText:"ส่งคำอุทธรณ์",fields:[{name:"reason",label:"เหตุผลที่ต้องการอุทธรณ์",type:"textarea",placeholder:"อธิบายเหตุผลอย่างน้อย 10 ตัวอักษร",required:true,minLength:10,rows:5},{name:"evidenceUrl",label:"ลิงก์หลักฐาน",type:"url",placeholder:"https://... (ไม่บังคับ)",hint:"ใส่ลิงก์ไฟล์หรือหลักฐานที่ผู้พิจารณาสามารถเปิดดูได้"}],onSubmit:async v=>{await API.call("submitAppeal",{behaviorLogId:b.dataset.appeal,...v});toast("ส่งคำอุทธรณ์แล้ว");loadPage("myAppeals");}})});
 }
 
 function statusBehavior(s){const map={APPROVED:["อนุมัติแล้ว","green"],PENDING:["รออนุมัติ","amber"],REJECTED:["ไม่อนุมัติ","red"]};const v=map[s]||[s,""];return `<span class="pill ${v[1]}">${v[0]}</span>`}
@@ -176,7 +210,7 @@ function appealStatus(s){const map={PENDING:["รอตรวจสอบ","ambe
 async function renderAppeals(el){
   const items=await API.call("listAppeals");
   el.innerHTML=`<div class="page-heading"><div><h2>ตรวจสอบคำอุทธรณ์</h2><p>เมื่ออนุมัติ ระบบจะคืนคะแนนตามรายการหักเดิมโดยบันทึกเป็นรายการใหม่</p></div></div><div class="panel"><div class="table-wrap"><table><thead><tr><th>สมาชิก</th><th>รหัสรายการคะแนน</th><th>เหตุผลอุทธรณ์</th><th>หลักฐาน</th><th>สถานะ</th><th>พิจารณา</th></tr></thead><tbody>${items.map(a=>`<tr><td>${escapeHtml(a.memberId)}</td><td>${escapeHtml(a.behaviorLogId)}</td><td>${escapeHtml(a.reason)}</td><td>${a.evidenceUrl?`<a href="${escapeHtml(a.evidenceUrl)}" target="_blank" rel="noopener">เปิดหลักฐาน</a>`:"-"}</td><td>${appealStatus(a.status)}</td><td>${a.status==="PENDING"?`<button class="btn primary" data-review="${escapeHtml(a.appealId)}" data-approve="1">อนุมัติ</button> <button class="btn" data-review="${escapeHtml(a.appealId)}" data-approve="0">ไม่อนุมัติ</button>`:escapeHtml(a.reviewNote||"-")}</td></tr>`).join("")||'<tr><td colspan="6">ไม่มีคำอุทธรณ์</td></tr>'}</tbody></table></div></div>`;
-  document.querySelectorAll("[data-review]").forEach(b=>b.onclick=async()=>{const reviewNote=prompt("ระบุเหตุผลการพิจารณา");if(!reviewNote)return;try{await API.call("reviewAppeal",{appealId:b.dataset.review,approve:b.dataset.approve==="1",reviewNote});toast("บันทึกผลพิจารณาแล้ว");loadPage("appeals")}catch(e){toast(e.message)}});
+  document.querySelectorAll("[data-review]").forEach(b=>b.onclick=async()=>{const approve=b.dataset.approve==="1";await modalForm({title:approve?"อนุมัติคำอุทธรณ์":"ไม่อนุมัติคำอุทธรณ์",subtitle:"บันทึกเหตุผลประกอบการพิจารณา",icon:approve?"fa-circle-check":"fa-circle-xmark",submitText:"ยืนยันผลพิจารณา",fields:[{name:"reviewNote",label:"เหตุผลการพิจารณา",type:"textarea",placeholder:"ระบุเหตุผลให้สมาชิกเข้าใจ",required:true,minLength:3,rows:4}],onSubmit:async v=>{await API.call("reviewAppeal",{appealId:b.dataset.review,approve,reviewNote:v.reviewNote});toast("บันทึกผลพิจารณาแล้ว");loadPage("appeals");}})});
 }
 
 
@@ -350,8 +384,8 @@ async function renderTasks(el){
     deptSelect.addEventListener("change",refreshAssignees);refreshAssignees();
   }
   if(form)form.onsubmit=async e=>{e.preventDefault();const fd=new FormData(form);const ids=[...form.querySelector("#taskAssignees").selectedOptions].map(o=>o.value);try{await API.call("createTask",{title:fd.get("title"),dueDate:fd.get("dueDate"),description:fd.get("description"),priority:fd.get("priority"),departmentId:form.querySelector("#taskDepartment").value,assigneeMemberIds:ids});toast("สร้างงานเรียบร้อย");loadPage("tasks")}catch(err){toast(err.message)}};
-  el.querySelectorAll("[data-task-submit]").forEach(b=>b.onclick=async()=>{const report=prompt("รายงานผลการทำงาน (อย่างน้อย 10 ตัวอักษร)");if(!report)return;const evidenceUrl=prompt("ลิงก์หลักฐาน (ถ้ามี)")||"";try{await API.call("submitTask",{taskId:b.dataset.taskSubmit,report,evidenceUrl});toast("ส่งรายงานแล้ว");loadPage("tasks")}catch(err){toast(err.message)}});
-  el.querySelectorAll("[data-task-detail]").forEach(b=>b.onclick=()=>{const t=tasks.find(x=>String(x.taskId)===b.dataset.taskDetail);const sub=(t.submissions||[]).slice(-1)[0];if(!sub){toast("ยังไม่มีรายงานส่งเข้ามา");return;}const action=prompt("รายงาน: "+sub.report+"\nหลักฐาน: "+(sub.evidenceUrl||"ไม่มี")+"\nพิมพ์ APPROVED เพื่ออนุมัติ หรือ REVISION เพื่อให้แก้ไข");if(!action)return;const decision=action.trim().toUpperCase();if(!["APPROVED","REVISION"].includes(decision)){toast("กรุณาพิมพ์ APPROVED หรือ REVISION");return;}const note=prompt("หมายเหตุการตรวจงาน (จำเป็นเมื่อให้แก้ไข)")||"";API.call("reviewTask",{taskId:t.taskId,decision,note}).then(()=>{toast("บันทึกผลตรวจงานแล้ว");loadPage("tasks")}).catch(e=>toast(e.message))});
+  el.querySelectorAll("[data-task-submit]").forEach(b=>b.onclick=async()=>{await modalForm({title:"ส่งรายงานผลการทำงาน",subtitle:"อธิบายสิ่งที่ดำเนินการและแนบหลักฐานได้",icon:"fa-file-arrow-up",submitText:"ส่งรายงาน",fields:[{name:"report",label:"รายงานผลการทำงาน",type:"textarea",placeholder:"สรุปผลการดำเนินงานอย่างน้อย 10 ตัวอักษร",required:true,minLength:10,rows:5},{name:"evidenceUrl",label:"ลิงก์หลักฐาน",type:"url",placeholder:"https://... (ไม่บังคับ)"}],onSubmit:async v=>{await API.call("submitTask",{taskId:b.dataset.taskSubmit,...v});toast("ส่งรายงานแล้ว");loadPage("tasks");}})});
+  el.querySelectorAll("[data-task-detail]").forEach(b=>b.onclick=async()=>{const t=tasks.find(x=>String(x.taskId)===b.dataset.taskDetail);const sub=(t.submissions||[]).slice(-1)[0];if(!sub){toast("ยังไม่มีรายงานส่งเข้ามา");return;}const intro=`<div class="app-modal-report"><b>รายงานจากสมาชิก</b><p>${escapeHtml(sub.report)}</p>${sub.evidenceUrl?`<a href="${escapeHtml(sub.evidenceUrl)}" target="_blank" rel="noopener">เปิดหลักฐาน <i class="fa-solid fa-arrow-up-right-from-square"></i></a>`:'<small>ไม่มีลิงก์หลักฐานแนบ</small>'}</div>`;await modalForm({title:"ตรวจสอบรายงานงาน",subtitle:escapeHtml(t.title||"งานที่ได้รับมอบหมาย"),icon:"fa-clipboard-check",intro,submitText:"บันทึกผลตรวจ",fields:[{name:"decision",label:"ผลการตรวจ",type:"select",required:true,value:"APPROVED",options:[{value:"APPROVED",label:"อนุมัติ — งานเรียบร้อย"},{value:"REVISION",label:"ให้แก้ไข — ส่งกลับสมาชิก"}]},{name:"note",label:"หมายเหตุถึงสมาชิก",type:"textarea",placeholder:"ระบุข้อเสนอแนะหรือสิ่งที่ต้องแก้ไข (กรณีให้แก้ไขต้องระบุ)",rows:3}],onSubmit:async v=>{if(v.decision==="REVISION"&&v.note.trim().length<3)throw new Error("กรุณาระบุสิ่งที่ต้องแก้ไขอย่างน้อย 3 ตัวอักษร");await API.call("reviewTask",{taskId:t.taskId,decision:v.decision,note:v.note});toast("บันทึกผลตรวจงานแล้ว");loadPage("tasks");}})});
 }
 function taskStatus(s){const m={OPEN:["รอดำเนินการ",""],SUBMITTED:["ส่งแล้ว","amber"],APPROVED:["สำเร็จ","green"],REVISION:["ให้แก้ไข","red"],CANCELLED:["ยกเลิก",""]};const x=m[s]||[s,""];return `<span class="pill ${x[1]}">${x[0]}</span>`}
 function dueLabel(date,status){if(["APPROVED","CANCELLED"].includes(status)||!date)return "";const days=Math.ceil((new Date(String(date)+"T23:59:59").getTime()-Date.now())/86400000);if(days<0)return '<span class="pill red">เลยกำหนด</span>';if(days<=3)return `<span class="pill amber">${days===0?"ครบกำหนดวันนี้":"เหลือ "+days+" วัน"}</span>`;return ""}
