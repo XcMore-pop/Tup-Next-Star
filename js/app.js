@@ -166,7 +166,7 @@ async function renderAttendance(el){
     if(!$("#eventName").value.trim()){toast("กรุณาระบุชื่อกิจกรรม");$("#eventName").focus();return;}
     if(!recordsToSave.length){toast("กรุณาเลือกสมาชิกอย่างน้อย 1 คน");return;}
     const btn=$("#saveAttendanceBatch");btn.disabled=true;btn.innerHTML='<span class="button-spinner inline-spinner"></span> กำลังบันทึก...';
-    try{const result=await API.call("recordAttendanceBatch",{eventName:$("#eventName").value.trim(),eventType:$("#eventType").value,records:recordsToSave});toast(`บันทึกเช็กชื่อสำเร็จ ${result.saved} คน`);loadPage("attendance");}
+    try{const result=await API.call("recordAttendanceBatch",{eventName:$("#eventName").value.trim(),eventType:$("#eventType").value,records:recordsToSave});const deductionText=result.autoDeductions?` · หักอัตโนมัติ ${result.absentPenalties||0} คน (ขาด) และ ${result.latePenalties||0} คน (สาย) รวม ${result.deductedPoints} คะแนน`:"";toast(`บันทึกเช็กชื่อสำเร็จ ${result.saved} คน${deductionText}`);loadPage("attendance");}
     catch(e){toast(e.message);btn.disabled=false;btn.innerHTML='<i class="fa-solid fa-floppy-disk"></i> บันทึกการเช็กชื่อ';}
   };
   drawRows();
@@ -174,7 +174,7 @@ async function renderAttendance(el){
 function statusPill(s){const map={PRESENT:["มา","green"],LATE:["สาย","amber"],LEAVE:["ลา",""],ABSENT:["ขาด","red"]};const x=map[s]||[s,""];return `<span class="pill ${x[1]}">${x[0]}</span>`}
 async function renderBehavior(el){
   const [members,logs]=await Promise.all([API.call("listMembers"),API.call("listBehavior")]);
-  el.innerHTML=`<div class="page-heading"><div><h2>คะแนนความประพฤติ</h2><p>คะแนนเริ่มต้น 100 คะแนน · รายการใหม่ต้องผ่านการอนุมัติ</p></div></div>
+  el.innerHTML=`<div class="page-heading"><div><h2>คะแนนความประพฤติ</h2><p>คะแนนเริ่มต้น 100 คะแนน · รายการทั่วไปต้องผ่านการอนุมัติ · ขาดหัก 5 คะแนน และสายหัก 3 คะแนนอัตโนมัติ ตามประเภทการประชุม การปฏิบัติหน้าที่ หรือกิจกรรม</p></div></div>
   <div class="panel"><h3>ส่งคำขอเพิ่ม / หักคะแนน</h3><div class="form-grid">
   <label>สมาชิก<select id="behMember" class="field">${members.map(m=>`<option value="${escapeHtml(m.memberId)}">${escapeHtml(m.firstName+" "+m.lastName)}</option>`).join("")}</select></label>
   <label>คะแนน (+ เพิ่ม / - หัก)<input id="behPoints" class="field" type="number" min="-30" max="30" placeholder="-5"></label>
@@ -409,7 +409,41 @@ async function renderReports(el){
   el.innerHTML=`<div class="page-heading"><div><h2>รายงานผลการปฏิบัติงาน</h2><p>สรุปข้อมูลการเข้าร่วม คะแนน และความคืบหน้างานจากฐานข้อมูล</p></div></div><div class="stats">${stat("สมาชิก",d.totalMembers,"fa-users")}${stat("เข้าร่วมกิจกรรม",d.attendance.rate+"%","fa-calendar-check")}${stat("คะแนนเฉลี่ย",d.averageScore,"fa-award")}${stat("งานสำเร็จ",d.tasks.done+" / "+d.tasks.total,"fa-list-check")}</div><div class="stats">${stat("งานค้าง",d.tasks.open,"fa-hourglass-half")}${stat("งานเลยกำหนด",d.tasks.overdue,"fa-triangle-exclamation")}${stat("ขาดกิจกรรม",d.attendance.absent,"fa-user-xmark")}${stat("มาสาย",d.attendance.late,"fa-clock")}</div><div class="panel"><h3>เปรียบเทียบผลงานรายเดือน (จำนวนงาน)</h3><div class="table-wrap"><table><thead><tr><th>เดือน</th><th>งานทั้งหมด</th><th>สำเร็จ</th><th>ยังไม่สำเร็จ</th></tr></thead><tbody>${d.monthly.map(m=>`<tr><td>${escapeHtml(m.month)}</td><td>${m.total}</td><td>${m.done}</td><td>${m.open}</td></tr>`).join("")||'<tr><td colspan="4">ยังไม่มีข้อมูลงานรายเดือน</td></tr>'}</tbody></table></div></div><div class="panel"><h3>เปรียบเทียบผลการดำเนินงานรายฝ่าย</h3><div class="table-wrap"><table><thead><tr><th>ฝ่าย</th><th>สมาชิก</th><th>คะแนนเฉลี่ย</th><th>เข้าร่วม</th><th>งานสำเร็จ</th></tr></thead><tbody>${d.departmentComparison.map(x=>`<tr><td>${escapeHtml(x.name)}</td><td>${x.members}</td><td>${x.averageScore}</td><td>${x.attendanceRate}%</td><td>${x.tasksDone}/${x.tasksTotal}</td></tr>`).join("")||'<tr><td colspan="5">ไม่มีข้อมูล</td></tr>'}</tbody></table></div></div><div class="panel"><h3>สถิติการเข้าร่วมกิจกรรม</h3><p>มา/สาย ${d.attendance.attended} · ลา ${d.attendance.leave} · ขาด ${d.attendance.absent} · ทั้งหมด ${d.attendance.total} รายการ</p></div>`;
 }
 
-async function renderAudit(el){if(user().role!=="ADMIN"&&user().role!=="AUDITOR")throw new Error("ไม่มีสิทธิ์ดูประวัติการใช้งาน");const items=await API.call("listAuditLog",{limit:300});el.innerHTML=`<div class="page-heading"><div><h2>ประวัติการใช้งานระบบ</h2><p>ตรวจสอบว่าใครดำเนินการอะไร กับข้อมูลใด และเมื่อใด</p></div><button class="btn" id="reloadAudit"><i class="fa-solid fa-rotate"></i> รีเฟรช</button></div><div class="panel"><div class="table-wrap"><table><thead><tr><th>วันและเวลา</th><th>ผู้ดำเนินการ</th><th>การกระทำ</th><th>ประเภทข้อมูล</th><th>รายละเอียด</th></tr></thead><tbody>${items.map(x=>`<tr><td>${escapeHtml(new Date(x.createdAt).toLocaleString("th-TH"))}</td><td>${escapeHtml(x.actorUsername)}</td><td>${escapeHtml(x.action)}</td><td>${escapeHtml(x.targetType)} / ${escapeHtml(x.targetId)}</td><td>${escapeHtml(x.details)}</td></tr>`).join("")||'<tr><td colspan="5">ยังไม่มีประวัติ</td></tr>'}</tbody></table></div></div>`;el.querySelector("#reloadAudit").onclick=()=>loadPage("audit")}
+async function renderAudit(el){
+  if(user().role!=="ADMIN"&&user().role!=="AUDITOR")throw new Error("ไม่มีสิทธิ์ดูประวัติการใช้งาน");
+  const items=await API.call("listAuditLog",{limit:5000});
+  const pageSize=20;
+  let currentPage=1;
+  const render=()=>{
+    const total=items.length;
+    const pageCount=Math.max(1,Math.ceil(total/pageSize));
+    currentPage=Math.min(Math.max(1,currentPage),pageCount);
+    const start=(currentPage-1)*pageSize;
+    const visible=items.slice(start,start+pageSize);
+    const from=total?start+1:0, to=Math.min(start+pageSize,total);
+    const pageButtons=[];
+    let pages=[];
+    if(pageCount<=7){for(let i=1;i<=pageCount;i++)pages.push(i);}
+    else {
+      pages=[1];
+      if(currentPage>3)pages.push("...");
+      const middleStart=Math.max(2,currentPage-1), middleEnd=Math.min(pageCount-1,currentPage+1);
+      for(let i=middleStart;i<=middleEnd;i++)pages.push(i);
+      if(currentPage<pageCount-2)pages.push("...");
+      pages.push(pageCount);
+    }
+    pages.forEach(page=>{
+      if(page==="...")pageButtons.push('<span class="audit-page-ellipsis">…</span>');
+      else pageButtons.push(`<button type="button" class="audit-page-number ${page===currentPage?"active":""}" data-page="${page}" aria-label="หน้า ${page}" ${page===currentPage?'aria-current="page"':""}>${page}</button>`);
+    });
+    el.innerHTML=`<div class="page-heading"><div><h2>ประวัติการใช้งานระบบ</h2><p>ตรวจสอบว่าใครดำเนินการอะไร กับข้อมูลใด และเมื่อใด</p></div><button class="btn" id="reloadAudit"><i class="fa-solid fa-rotate"></i> รีเฟรช</button></div><div class="panel audit-panel"><div class="audit-table-meta"><span>แสดง <strong>${from}–${to}</strong> จาก <strong>${total.toLocaleString("th-TH")}</strong> รายการ</span><span>หน้าละ ${pageSize} รายการ</span></div><div class="table-wrap"><table><thead><tr><th>วันและเวลา</th><th>ผู้ดำเนินการ</th><th>การกระทำ</th><th>ประเภทข้อมูล</th><th>รายละเอียด</th></tr></thead><tbody>${visible.map(x=>`<tr><td>${escapeHtml(x.createdAt?new Date(x.createdAt).toLocaleString("th-TH"):"-")}</td><td>${escapeHtml(x.actorUsername||"-")}</td><td>${escapeHtml(x.action||"-")}</td><td>${escapeHtml(x.targetType||"-")} / ${escapeHtml(x.targetId||"-")}</td><td>${escapeHtml(x.details||"-")}</td></tr>`).join("")||'<tr><td colspan="5" class="audit-empty">ยังไม่มีประวัติการใช้งาน</td></tr>'}</tbody></table></div><div class="audit-pagination"><span class="audit-page-summary">หน้า ${currentPage} จาก ${pageCount}</span><nav class="audit-page-controls" aria-label="เปลี่ยนหน้าประวัติการใช้งาน"><button type="button" class="audit-page-arrow" id="auditPrev" aria-label="หน้าก่อนหน้า" ${currentPage===1?"disabled":""}><i class="fa-solid fa-chevron-left"></i></button>${pageButtons.join("")}<button type="button" class="audit-page-arrow" id="auditNext" aria-label="หน้าถัดไป" ${currentPage===pageCount?"disabled":""}><i class="fa-solid fa-chevron-right"></i></button></nav></div></div>`;
+    el.querySelector("#reloadAudit").onclick=()=>loadPage("audit");
+    el.querySelector("#auditPrev").onclick=()=>{if(currentPage>1){currentPage--;render();}};
+    el.querySelector("#auditNext").onclick=()=>{if(currentPage<pageCount){currentPage++;render();}};
+    el.querySelectorAll(".audit-page-number").forEach(button=>button.addEventListener("click",()=>{currentPage=Number(button.dataset.page);render();}));
+  };
+  render();
+}
 
 $("#loginForm").addEventListener("submit",async e=>{
   e.preventDefault();
