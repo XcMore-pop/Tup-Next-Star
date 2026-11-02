@@ -2,6 +2,9 @@ const $ = s => document.querySelector(s);
 const user = () => { try{return JSON.parse(sessionStorage.getItem("party_user")||"null")}catch(e){return null} };
 const titles = {dashboard:"ภาพรวม",members:"ระบบสมาชิก",attendance:"ระบบเช็กชื่อ",behavior:"คะแนนความประพฤติ",memberPortal:"ภาพรวมของฉัน",myAttendance:"ประวัติการเช็กชื่อ",myBehavior:"คะแนนความประพฤติ",myAppeals:"คำอุทธรณ์ของฉัน",appeals:"ตรวจคำอุทธรณ์",account:"บัญชีของฉัน",userManagement:"จัดการบัญชีผู้ใช้",departmentLeaders:"แต่งตั้งหัวหน้าฝ่าย",tasks:"ระบบมอบหมายงาน",announcements:"ประกาศข่าวสาร",calendar:"ปฏิทินกิจกรรม",reports:"รายงานผลการปฏิบัติงาน",audit:"ประวัติการใช้งาน"};
 function toast(msg){const el=$("#toast");el.textContent=msg;el.style.display="block";setTimeout(()=>el.style.display="none",3000)}
+// ซ่อนรหัสอ้างอิงภายในระบบจากข้อความที่แสดงบนหน้าเว็บ (ยังเก็บไว้ในฐานข้อมูลเพื่อป้องกันการหักคะแนนซ้ำ)
+function cleanDisplayReason(value){return String(value??"").replace(/\s*\[ATTENDANCE:[^\]]+\]/gi, "").trim()}
+function cleanDisplayDetails(value){return String(value??"").replace(/\s*\[ATTENDANCE:[^\]]+\]/gi, "").trim()}
 
 // Reusable, accessible modal form. Replaces native browser prompt() dialogs.
 function modalForm({title,subtitle="กรอกข้อมูลให้ครบถ้วน",icon="fa-pen-to-square",fields=[],submitText="บันทึกข้อมูล",intro="",onSubmit}){
@@ -180,7 +183,7 @@ async function renderBehavior(el){
   <label>คะแนน (+ เพิ่ม / - หัก)<input id="behPoints" class="field" type="number" min="-30" max="30" placeholder="-5"></label>
   <label>เหตุผล<input id="behReason" class="field" placeholder="ระบุเหตุผล"></label>
   <label>ลิงก์หลักฐาน<input id="behEvidence" class="field" placeholder="https://... (ถ้ามี)"></label></div><button class="btn primary" id="sendBehavior" style="margin-top:15px">ส่งคำขอ</button></div>
-  <div class="panel" style="margin-top:18px"><h3>ประวัติคะแนน</h3><div class="table-wrap"><table><thead><tr><th>สมาชิก</th><th>คะแนน</th><th>เหตุผล</th><th>สถานะ</th><th>ผู้บันทึก</th><th>การอนุมัติ</th></tr></thead><tbody>${logs.map(x=>`<tr><td>${escapeHtml(x.memberName)}</td><td>${Number(x.pointsChange)>0?"+":""}${escapeHtml(x.pointsChange)}</td><td>${escapeHtml(x.reason)}</td><td>${escapeHtml(x.status)}</td><td>${escapeHtml(x.recordedBy)}</td><td>${x.status==="PENDING"&&user().role==="ADMIN"?`<button class="btn primary" data-approve="${escapeHtml(x.logId)}">อนุมัติ</button>`:"-"}</td></tr>`).join("")||'<tr><td colspan="6">ยังไม่มีรายการ</td></tr>'}</tbody></table></div></div>`;
+  <div class="panel" style="margin-top:18px"><h3>ประวัติคะแนน</h3><div class="table-wrap"><table><thead><tr><th>สมาชิก</th><th>คะแนน</th><th>เหตุผล</th><th>สถานะ</th><th>ผู้บันทึก</th><th>การอนุมัติ</th></tr></thead><tbody>${logs.map(x=>`<tr><td>${escapeHtml(x.memberName)}</td><td>${Number(x.pointsChange)>0?"+":""}${escapeHtml(x.pointsChange)}</td><td>${escapeHtml(cleanDisplayReason(x.reason))}</td><td>${escapeHtml(x.status)}</td><td>${escapeHtml(x.recordedBy)}</td><td>${x.status==="PENDING"&&user().role==="ADMIN"?`<button class="btn primary" data-approve="${escapeHtml(x.logId)}">อนุมัติ</button>`:"-"}</td></tr>`).join("")||'<tr><td colspan="6">ยังไม่มีรายการ</td></tr>'}</tbody></table></div></div>`;
   $("#sendBehavior").onclick=async()=>{try{await API.call("addBehavior",{memberId:$("#behMember").value,pointsChange:Number($("#behPoints").value),reason:$("#behReason").value,evidenceUrl:$("#behEvidence").value});toast("ส่งคำขอแล้ว");loadPage("behavior")}catch(e){toast(e.message)}};
   document.querySelectorAll("[data-approve]").forEach(b=>b.onclick=async()=>{try{await API.call("approveBehavior",{logId:b.dataset.approve,approve:true});toast("อนุมัติแล้ว");loadPage("behavior")}catch(e){toast(e.message)}});
 }
@@ -190,7 +193,7 @@ async function renderMemberPortal(el,page="memberPortal"){
   const m=d.member, summary=d.attendanceSummary;
   const deptNames={D1:"วิชาการ",D2:"กิจการนักเรียน",D3:"ประชาสัมพันธ์",D4:"บริหาร",D5:"งบประมาณ",D6:"นันทนาการ"};
   const activeAppealIds=new Set(d.appeals.filter(a=>["PENDING","APPROVED"].includes(a.status)).map(a=>String(a.behaviorLogId)));
-  const behaviorRows=d.behavior.map(x=>`<tr><td>${escapeHtml(new Date(x.createdAt).toLocaleString("th-TH"))}</td><td>${escapeHtml(x.reason)}</td><td>${Number(x.pointsChange)>0?"+":""}${Number(x.pointsChange)}</td><td>${statusBehavior(x.status)}</td><td>${x.status==="APPROVED"&&Number(x.pointsChange)<0?(activeAppealIds.has(String(x.logId))?"ส่งอุทธรณ์แล้ว":`<button class="btn primary" data-appeal="${escapeHtml(x.logId)}">ยื่นอุทธรณ์</button>`):"-"}</td></tr>`).join("")||'<tr><td colspan="5">ยังไม่มีประวัติคะแนน</td></tr>';
+  const behaviorRows=d.behavior.map(x=>`<tr><td>${escapeHtml(new Date(x.createdAt).toLocaleString("th-TH"))}</td><td>${escapeHtml(cleanDisplayReason(x.reason))}</td><td>${Number(x.pointsChange)>0?"+":""}${Number(x.pointsChange)}</td><td>${statusBehavior(x.status)}</td><td>${x.status==="APPROVED"&&Number(x.pointsChange)<0?(activeAppealIds.has(String(x.logId))?"ส่งอุทธรณ์แล้ว":`<button class="btn primary" data-appeal="${escapeHtml(x.logId)}">ยื่นอุทธรณ์</button>`):"-"}</td></tr>`).join("")||'<tr><td colspan="5">ยังไม่มีประวัติคะแนน</td></tr>';
   const attendanceRows=d.attendance.map(x=>`<tr><td>${escapeHtml(new Date(x.createdAt).toLocaleString("th-TH"))}</td><td>${escapeHtml(x.eventName)}</td><td>${escapeHtml(x.eventType)}</td><td>${statusPill(x.status)}</td><td>${escapeHtml(x.note||"-")}</td></tr>`).join("")||'<tr><td colspan="5">ยังไม่มีประวัติเช็กชื่อ</td></tr>';
   const appealRows=d.appeals.map(a=>`<tr><td>${escapeHtml(new Date(a.createdAt).toLocaleString("th-TH"))}</td><td>${escapeHtml(a.reason)}</td><td>${appealStatus(a.status)}</td><td>${escapeHtml(a.reviewNote||"รอผลพิจารณา")}</td></tr>`).join("")||'<tr><td colspan="4">ยังไม่มีคำอุทธรณ์</td></tr>';
   const heading={memberPortal:["ภาพรวมของฉัน","สรุปข้อมูลสมาชิก คะแนน และการเข้าร่วมกิจกรรม"],myAttendance:["ประวัติการเช็กชื่อ","ตรวจสอบการเข้าร่วมประชุม กิจกรรม และการปฏิบัติหน้าที่"],myBehavior:["คะแนนความประพฤติ","ตรวจสอบคะแนน เหตุผล และยื่นอุทธรณ์รายการที่เข้าเงื่อนไข"],myAppeals:["คำอุทธรณ์ของฉัน","ติดตามสถานะและผลการพิจารณาคำอุทธรณ์"]}[page];
@@ -409,41 +412,7 @@ async function renderReports(el){
   el.innerHTML=`<div class="page-heading"><div><h2>รายงานผลการปฏิบัติงาน</h2><p>สรุปข้อมูลการเข้าร่วม คะแนน และความคืบหน้างานจากฐานข้อมูล</p></div></div><div class="stats">${stat("สมาชิก",d.totalMembers,"fa-users")}${stat("เข้าร่วมกิจกรรม",d.attendance.rate+"%","fa-calendar-check")}${stat("คะแนนเฉลี่ย",d.averageScore,"fa-award")}${stat("งานสำเร็จ",d.tasks.done+" / "+d.tasks.total,"fa-list-check")}</div><div class="stats">${stat("งานค้าง",d.tasks.open,"fa-hourglass-half")}${stat("งานเลยกำหนด",d.tasks.overdue,"fa-triangle-exclamation")}${stat("ขาดกิจกรรม",d.attendance.absent,"fa-user-xmark")}${stat("มาสาย",d.attendance.late,"fa-clock")}</div><div class="panel"><h3>เปรียบเทียบผลงานรายเดือน (จำนวนงาน)</h3><div class="table-wrap"><table><thead><tr><th>เดือน</th><th>งานทั้งหมด</th><th>สำเร็จ</th><th>ยังไม่สำเร็จ</th></tr></thead><tbody>${d.monthly.map(m=>`<tr><td>${escapeHtml(m.month)}</td><td>${m.total}</td><td>${m.done}</td><td>${m.open}</td></tr>`).join("")||'<tr><td colspan="4">ยังไม่มีข้อมูลงานรายเดือน</td></tr>'}</tbody></table></div></div><div class="panel"><h3>เปรียบเทียบผลการดำเนินงานรายฝ่าย</h3><div class="table-wrap"><table><thead><tr><th>ฝ่าย</th><th>สมาชิก</th><th>คะแนนเฉลี่ย</th><th>เข้าร่วม</th><th>งานสำเร็จ</th></tr></thead><tbody>${d.departmentComparison.map(x=>`<tr><td>${escapeHtml(x.name)}</td><td>${x.members}</td><td>${x.averageScore}</td><td>${x.attendanceRate}%</td><td>${x.tasksDone}/${x.tasksTotal}</td></tr>`).join("")||'<tr><td colspan="5">ไม่มีข้อมูล</td></tr>'}</tbody></table></div></div><div class="panel"><h3>สถิติการเข้าร่วมกิจกรรม</h3><p>มา/สาย ${d.attendance.attended} · ลา ${d.attendance.leave} · ขาด ${d.attendance.absent} · ทั้งหมด ${d.attendance.total} รายการ</p></div>`;
 }
 
-async function renderAudit(el){
-  if(user().role!=="ADMIN"&&user().role!=="AUDITOR")throw new Error("ไม่มีสิทธิ์ดูประวัติการใช้งาน");
-  const items=await API.call("listAuditLog",{limit:5000});
-  const pageSize=20;
-  let currentPage=1;
-  const render=()=>{
-    const total=items.length;
-    const pageCount=Math.max(1,Math.ceil(total/pageSize));
-    currentPage=Math.min(Math.max(1,currentPage),pageCount);
-    const start=(currentPage-1)*pageSize;
-    const visible=items.slice(start,start+pageSize);
-    const from=total?start+1:0, to=Math.min(start+pageSize,total);
-    const pageButtons=[];
-    let pages=[];
-    if(pageCount<=7){for(let i=1;i<=pageCount;i++)pages.push(i);}
-    else {
-      pages=[1];
-      if(currentPage>3)pages.push("...");
-      const middleStart=Math.max(2,currentPage-1), middleEnd=Math.min(pageCount-1,currentPage+1);
-      for(let i=middleStart;i<=middleEnd;i++)pages.push(i);
-      if(currentPage<pageCount-2)pages.push("...");
-      pages.push(pageCount);
-    }
-    pages.forEach(page=>{
-      if(page==="...")pageButtons.push('<span class="audit-page-ellipsis">…</span>');
-      else pageButtons.push(`<button type="button" class="audit-page-number ${page===currentPage?"active":""}" data-page="${page}" aria-label="หน้า ${page}" ${page===currentPage?'aria-current="page"':""}>${page}</button>`);
-    });
-    el.innerHTML=`<div class="page-heading"><div><h2>ประวัติการใช้งานระบบ</h2><p>ตรวจสอบว่าใครดำเนินการอะไร กับข้อมูลใด และเมื่อใด</p></div><button class="btn" id="reloadAudit"><i class="fa-solid fa-rotate"></i> รีเฟรช</button></div><div class="panel audit-panel"><div class="audit-table-meta"><span>แสดง <strong>${from}–${to}</strong> จาก <strong>${total.toLocaleString("th-TH")}</strong> รายการ</span><span>หน้าละ ${pageSize} รายการ</span></div><div class="table-wrap"><table><thead><tr><th>วันและเวลา</th><th>ผู้ดำเนินการ</th><th>การกระทำ</th><th>ประเภทข้อมูล</th><th>รายละเอียด</th></tr></thead><tbody>${visible.map(x=>`<tr><td>${escapeHtml(x.createdAt?new Date(x.createdAt).toLocaleString("th-TH"):"-")}</td><td>${escapeHtml(x.actorUsername||"-")}</td><td>${escapeHtml(x.action||"-")}</td><td>${escapeHtml(x.targetType||"-")} / ${escapeHtml(x.targetId||"-")}</td><td>${escapeHtml(x.details||"-")}</td></tr>`).join("")||'<tr><td colspan="5" class="audit-empty">ยังไม่มีประวัติการใช้งาน</td></tr>'}</tbody></table></div><div class="audit-pagination"><span class="audit-page-summary">หน้า ${currentPage} จาก ${pageCount}</span><nav class="audit-page-controls" aria-label="เปลี่ยนหน้าประวัติการใช้งาน"><button type="button" class="audit-page-arrow" id="auditPrev" aria-label="หน้าก่อนหน้า" ${currentPage===1?"disabled":""}><i class="fa-solid fa-chevron-left"></i></button>${pageButtons.join("")}<button type="button" class="audit-page-arrow" id="auditNext" aria-label="หน้าถัดไป" ${currentPage===pageCount?"disabled":""}><i class="fa-solid fa-chevron-right"></i></button></nav></div></div>`;
-    el.querySelector("#reloadAudit").onclick=()=>loadPage("audit");
-    el.querySelector("#auditPrev").onclick=()=>{if(currentPage>1){currentPage--;render();}};
-    el.querySelector("#auditNext").onclick=()=>{if(currentPage<pageCount){currentPage++;render();}};
-    el.querySelectorAll(".audit-page-number").forEach(button=>button.addEventListener("click",()=>{currentPage=Number(button.dataset.page);render();}));
-  };
-  render();
-}
+async function renderAudit(el){if(user().role!=="ADMIN"&&user().role!=="AUDITOR")throw new Error("ไม่มีสิทธิ์ดูประวัติการใช้งาน");const items=await API.call("listAuditLog",{limit:300});el.innerHTML=`<div class="page-heading"><div><h2>ประวัติการใช้งานระบบ</h2><p>ตรวจสอบว่าใครดำเนินการอะไร กับข้อมูลใด และเมื่อใด</p></div><button class="btn" id="reloadAudit"><i class="fa-solid fa-rotate"></i> รีเฟรช</button></div><div class="panel"><div class="table-wrap"><table><thead><tr><th>วันและเวลา</th><th>ผู้ดำเนินการ</th><th>การกระทำ</th><th>ประเภทข้อมูล</th><th>รายละเอียด</th></tr></thead><tbody>${items.map(x=>`<tr><td>${escapeHtml(new Date(x.createdAt).toLocaleString("th-TH"))}</td><td>${escapeHtml(x.actorUsername)}</td><td>${escapeHtml(x.action)}</td><td>${escapeHtml(x.targetType)} / ${escapeHtml(x.targetId)}</td><td>${escapeHtml(cleanDisplayDetails(x.details))}</td></tr>`).join("")||'<tr><td colspan="5">ยังไม่มีประวัติ</td></tr>'}</tbody></table></div></div>`;el.querySelector("#reloadAudit").onclick=()=>loadPage("audit")}
 
 $("#loginForm").addEventListener("submit",async e=>{
   e.preventDefault();
